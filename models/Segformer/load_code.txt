@@ -1,0 +1,9 @@
+        partial = torch.load(pre_path)
+        state = model.state_dict()
+        # 1. filter out unnecessary keys
+        #pretrained_dict = {k: v for k, v in partial.items() if k in state}
+        pretrained_dict = {'module.backbone.'+k: v for k, v in partial.items() if 'module.backbone.'+k in state}
+        # 2. overwrite entries in the existing state dict
+        state.update(pretrained_dict)
+        # 3. load the new state dict
+        model.load_state_dict(state)
