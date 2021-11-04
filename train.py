@@ -12,16 +12,16 @@ from utils import *
 from acc_loss import DiceLossPlusBECLoss
 
 # Hyper parameters etc. =============================================================
-RETRAIN = True
+RETRAIN = False
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-LEARN_RATE = 8.618e-5 if RETRAIN else 1.618e-4
+LEARN_RATE = 8.618e-5 if RETRAIN else 3.618e-4
 LR_STEP = 10
 DESCEND_RATE = 0.80
-BATCH_SIZE = 16
+BATCH_SIZE = 6
 NUM_EPOCHS = 400
 NUM_WORKS = 8
 IMAGE_HEIGHT = 512  # 512 originally
-IMAGE_WIDTH = 512   # 512 originally
+IMAGE_WIDTH = 512  # 512 originally
 PIN_MEMORY = True
 LOAD_MODEL = False
 TRAIN_IMG_DIR = "./PadMedical/train"
@@ -29,6 +29,8 @@ TRAIN_MASK_DIR = "./PadMedical/train_mask"
 VAL_IMG_DIR = "./PadMedical/val"
 VAL_MASK_DIR = "./PadMedical/val_mask"
 CHECKPOINT = "Medical_checkpoint.pth"
+
+
 # ====================================================================================
 
 
@@ -59,10 +61,10 @@ def main():
     # train/val dataset augmentations
     train_transform = Alb.Compose(
         [
-            Alb.RandomRotate90(p=0.9),
-            Alb.HorizontalFlip(p=0.8),
-            Alb.VerticalFlip(p=0.8),
-            Alb.ElasticTransform(p=0.7),
+            Alb.RandomRotate90(p=0.6),
+            Alb.HorizontalFlip(p=0.6),
+            Alb.VerticalFlip(p=0.6),
+            Alb.ElasticTransform(p=0.5),
             Alb.Normalize(
                 mean=[0.0, 0.0, 0.0],
                 std=[1.0, 1.0, 1.0],
@@ -75,9 +77,9 @@ def main():
     val_transform = Alb.Compose(
         [
             Alb.RandomRotate90(p=0.5),
-            Alb.HorizontalFlip(p=0.4),
-            Alb.VerticalFlip(p=0.4),
-            Alb.ElasticTransform(p=0.3),
+            Alb.HorizontalFlip(p=0.5),
+            Alb.VerticalFlip(p=0.5),
+            Alb.ElasticTransform(p=0.2),
             Alb.Normalize(
                 mean=[0.0, 0.0, 0.0],
                 std=[1.0, 1.0, 1.0],
@@ -107,9 +109,25 @@ def main():
     # If the out_channels are 3 or more, use CrossEntropy loss
     # loss_fn = nn.BCEWithLogitsLoss()
     loss_fn = DiceLossPlusBECLoss(k1=0.0, k2=1.0)
+
     optimizer = optim.Adam(model.parameters(), lr=LEARN_RATE)
-    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-9, last_epoch=5)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP, gamma=DESCEND_RATE)
+
+    # ====Multiple lr scheduler : cosine annealing, warm_up, step_lr, reduce_lr
+    # scheduler_cos = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-9, last_epoch=5)
+
+    warm_up_epochs = 15
+    warm_up_with_step = lambda epo: (epo + 1) / warm_up_epochs if epo < warm_up_epochs else \
+        DESCEND_RATE ** (((epo - warm_up_epochs) / (NUM_EPOCHS - warm_up_epochs)) // LR_STEP * LR_STEP)
+    scheduler_warm_up = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warm_up_with_step)
+
+    # scheduler_cond = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=DESCEND_RATE,
+    #                                                       patience=LR_STEP//2, verbose=True,
+    #                                                       min_lr=1e-10, cooldown=3)
+
+    # scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP, gamma=DESCEND_RATE)
+
+    scheduler = scheduler_warm_up
+
     # scaler : for auto scale/cast/align data type
     scaler = torch.cuda.amp.GradScaler()
     train_loader, val_loader = get_loaders(
@@ -147,7 +165,8 @@ def main():
 
         # print epoch state
         for group in optimizer.param_groups:
-            print(f"--- Epoch : {epoch}/{NUM_EPOCHS} | lr = {group['lr']:.7e}   |  acc = {acc:.5f}   |  dice = {dice:.5f}")
+            print(
+                f"--- Epoch : {epoch}/{NUM_EPOCHS} | lr = {group['lr']:.7e}   |  acc = {acc:.5f}   |  dice = {dice:.5f}")
 
         # save models
         if dice >= max_dice:
