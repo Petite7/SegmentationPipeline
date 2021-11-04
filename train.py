@@ -115,18 +115,18 @@ def main():
     # ====Multiple lr scheduler : cosine annealing, warm_up, step_lr, reduce_lr
     # scheduler_cos = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-9, last_epoch=5)
 
-    warm_up_epochs = 15
-    warm_up_with_step = lambda epo: (epo + 1) / warm_up_epochs if epo < warm_up_epochs else \
-        DESCEND_RATE ** (((epo - warm_up_epochs) / (NUM_EPOCHS - warm_up_epochs)) // LR_STEP * LR_STEP)
-    scheduler_warm_up = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warm_up_with_step)
+    # warm_up_epochs = 15
+    # warm_up_with_step = lambda epo: (epo + 1) / warm_up_epochs if epo < warm_up_epochs else \
+    #     DESCEND_RATE ** (((epo - warm_up_epochs) / (NUM_EPOCHS - warm_up_epochs)) // LR_STEP * LR_STEP)
+    # scheduler_warm_up = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warm_up_with_step)
 
-    # scheduler_cond = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=DESCEND_RATE,
-    #                                                       patience=LR_STEP//2, verbose=True,
-    #                                                       min_lr=1e-10, cooldown=3)
+    scheduler_cond = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=DESCEND_RATE,
+                                                          patience=LR_STEP//2, verbose=True,
+                                                          min_lr=1e-10, cooldown=3)
 
     # scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP, gamma=DESCEND_RATE)
 
-    scheduler = scheduler_warm_up
+    scheduler = scheduler_cond
 
     # scaler : for auto scale/cast/align data type
     scaler = torch.cuda.amp.GradScaler()
