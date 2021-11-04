@@ -35,13 +35,16 @@ def save_max_score(path, acc, dice):
     md = md if (md > dice) else dice
     with open(path, 'w') as f:
         f.writelines(f"{ma},{md}")
+    return float(ma), float(md)
 
 
 def load_max_score(path):
     if os.path.isfile(path) is True:
         with open(path, 'r') as f:
             ma, md = f.readline().split(',')
-            return ma, md
+            return float(ma), float(md)
+    else:
+        return 0, 0
 
 
 def get_loaders(train_dir, train_mask_dir, train_transform, batch_size,

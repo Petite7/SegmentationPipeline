@@ -172,7 +172,7 @@ def main():
         if dice >= max_dice:
             print(f"> Saving checkpoint to : '{CHECKPOINT}'")
             save_checkpoint(model, optimizer, scheduler, CHECKPOINT)
-            save_max_score(r"max_score.csv", acc, dice)
+            max_acc, max_dice = save_max_score(r"max_score.csv", acc, dice)
 
             # print some examples to a folder
             save_as_images(val_loader, model, folder="save_images/", device=DEVICE)
