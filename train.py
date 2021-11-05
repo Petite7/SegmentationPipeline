@@ -181,6 +181,7 @@ def main():
 
         # print epoch state
         for group in optimizer.param_groups:
+            writer.add_scalar('learning rate', group['lr'], global_step=epoch)
             print(
                 f"--- Epoch : {epoch}/{NUM_EPOCHS} | lr = {group['lr']:.7e}   |  acc = {acc:.5f}   |  dice = {dice:.5f}")
 
