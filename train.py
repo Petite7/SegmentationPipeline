@@ -10,6 +10,7 @@ from acc_loss import check_accuracy_binary
 from models.Segformer.SegFormer import SegFormerNet
 from utils import *
 from acc_loss import DiceLossPlusBECLoss
+from torch.utils.tensorboard import SummaryWriter
 
 # Hyper parameters etc. =============================================================
 RETRAIN = False
@@ -17,8 +18,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LEARN_RATE = 8.618e-5 if RETRAIN else 2.618e-4
 LR_STEP = 10
 DESCEND_RATE = 0.80
-BATCH_SIZE = 6
-NUM_EPOCHS = 400
+BATCH_SIZE = 3
+NUM_EPOCHS = 100
 NUM_WORKS = 8
 IMAGE_HEIGHT = 512  # 512 originally
 IMAGE_WIDTH = 512  # 512 originally
@@ -29,13 +30,21 @@ TRAIN_MASK_DIR = "./PadMedical/train_mask"
 VAL_IMG_DIR = "./PadMedical/val"
 VAL_MASK_DIR = "./PadMedical/val_mask"
 CHECKPOINT = "Medical_checkpoint.pth"
+TENSORBOARD_PATH = r'/mnt/tensorboard'
 
 
 # ====================================================================================
 
+# Add Tensorboard support.
+log_path = os.path.join(TENSORBOARD_PATH, r'Medical')
+if os.path.exists(log_path):
+    os.removedirs(log_path)
+os.makedirs(log_path)
+writer = SummaryWriter(log_path)
+
 
 # tqdm : a progress bar
-def train_fn(loader, model, optimizer, loss_fn, scaler):
+def train_fn(loader, model, optimizer, loss_fn, scaler, epoch):
     loop = tqdm(loader)
 
     for batch_idx, (data, targets) in enumerate(loop):
@@ -55,6 +64,8 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
         # update tqdm loop
         loop.set_postfix(loss=loss.item())
+        # update tensorboard
+        writer.add_scalar('train_loss', loss.item(), epoch)
 
 
 def main():
@@ -155,14 +166,18 @@ def main():
     max_acc = float(ma) if RETRAIN else 0
     max_dice = float(md) - penalty if RETRAIN else 0
 
-    # Train #############################################################################
+    # Train =========================================================================================================
     for epoch in range(NUM_EPOCHS):
-        train_fn(train_loader, model, optimizer, loss_fn, scaler)
+        train_fn(train_loader, model, optimizer, loss_fn, scaler, epoch)
 
         # check accuracy
         acc, dice = check_accuracy_binary(val_loader, model, device=DEVICE)
         # scheduler.step(dice)
         scheduler.step()
+
+        # add tensorboard scales
+        writer.add_scalar('val_acc', acc, global_step=epoch)
+        writer.add_scalar('val_dice', dice, global_step=epoch)
 
         # print epoch state
         for group in optimizer.param_groups:
@@ -177,7 +192,7 @@ def main():
 
             # print some examples to a folder
             save_as_images(val_loader, model, folder="save_images/", device=DEVICE)
-    # Train #############################################################################
+    # Train =========================================================================================================
 
 
 # num_works cannot be run in python main, so you have to do this
