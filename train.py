@@ -14,7 +14,7 @@ from acc_loss import DiceLossPlusBECLoss
 # Hyper parameters etc. =============================================================
 RETRAIN = False
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-LEARN_RATE = 8.618e-5 if RETRAIN else 3.618e-4
+LEARN_RATE = 8.618e-5 if RETRAIN else 2.618e-4
 LR_STEP = 10
 DESCEND_RATE = 0.80
 BATCH_SIZE = 6
@@ -117,7 +117,7 @@ def main():
 
     warm_up_epochs = 15
     warm_up_with_step = lambda epo: (epo + 1) / warm_up_epochs if epo < warm_up_epochs else \
-        (DESCEND_RATE if epo % LR_STEP == 0 else 1)
+        DESCEND_RATE ** ((epo - warm_up_epochs) // LR_STEP)
     scheduler_warm_up = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=warm_up_with_step)
 
     # scheduler_cond = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=DESCEND_RATE,
@@ -161,7 +161,8 @@ def main():
 
         # check accuracy
         acc, dice = check_accuracy_binary(val_loader, model, device=DEVICE)
-        scheduler.step(dice)
+        # scheduler.step(dice)
+        scheduler.step()
 
         # print epoch state
         for group in optimizer.param_groups:
