@@ -1,5 +1,6 @@
 import torch
 import os
+import shutil
 import albumentations as Alb
 from albumentations.pytorch import ToTensorV2
 from tqdm import tqdm
@@ -14,6 +15,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Hyper parameters etc. =============================================================
 RETRAIN = False
+# Warning : GPU Memory x 2 , training time x 2!
+FROM_TEACHER = True
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LEARN_RATE = 8.618e-5 if RETRAIN else 2.618e-4
 LR_STEP = 10
@@ -30,21 +33,24 @@ TRAIN_MASK_DIR = "./PadMedical/train_mask"
 VAL_IMG_DIR = "./PadMedical/val"
 VAL_MASK_DIR = "./PadMedical/val_mask"
 CHECKPOINT = "Medical_checkpoint.pth"
-TENSORBOARD_PATH = r'/mnt/tensorboard'
+TEACHER = "Teacher.pth"
+PROJECT_PATH = r'/mnt/share/ycchen/RunTest'
+LOG_PATH = r'logs/Medical'
 
 
 # ====================================================================================
 
 # Add Tensorboard support.
-log_path = os.path.join(TENSORBOARD_PATH, r'Medical')
-if os.path.exists(log_path):
-    os.removedirs(log_path)
-os.makedirs(log_path)
-writer = SummaryWriter(log_path)
+if os.path.exists(LOG_PATH):
+    os.system('rm -rf ' + LOG_PATH)
+os.makedirs(LOG_PATH)
+writer = SummaryWriter(LOG_PATH)
+logs = os.path.join(PROJECT_PATH, LOG_PATH)
+os.system('ln -s ' + logs + ' /mnt/tensorboard')
 
 
 # tqdm : a progress bar
-def train_fn(loader, model, optimizer, loss_fn, scaler, epoch):
+def train_fn(loader, model, optimizer, loss_fn, scaler, epoch, from_model=None):
     loop = tqdm(loader)
 
     for batch_idx, (data, targets) in enumerate(loop):
@@ -55,6 +61,8 @@ def train_fn(loader, model, optimizer, loss_fn, scaler, epoch):
         with torch.cuda.amp.autocast():
             predictions = model(data)
             loss = loss_fn(predictions, targets)
+            if from_model is not None:
+                loss += loss_fn(predictions, from_model(data))
 
         # backward
         optimizer.zero_grad()
@@ -104,17 +112,15 @@ def main():
 
     model = SegFormerNet(1, [IMAGE_HEIGHT, IMAGE_WIDTH]).to(DEVICE)
     model = nn.DataParallel(model)
+    load_pretrain_train(r'mit_b5.pth', model)
 
-    partial = torch.load('mit_b5.pth')
-    state = model.state_dict()
-    # 1. filter out unnecessary keys
-    # pretrained_dict = {k: v for k, v in partial.items() if k in state}
-    pretrained_dict = {'module.backbone.' + k: v for k, v in partial.items() if 'module.backbone.' + k in state}
-    # 2. overwrite entries in the existing state dict
-    state.update(pretrained_dict)
-    # 3. load the new state dict
-    model.load_state_dict(state)
-    print(r"[!] Load pretrained : [mit_b5] complete.")
+    teacher = None
+    if FROM_TEACHER is True:
+        teacher = SegFormerNet(1, [IMAGE_HEIGHT, IMAGE_WIDTH]).to(DEVICE)
+        teacher = nn.DataParallel(teacher)
+        load_pretrain_predict(r'mit_b5.pth', teacher)
+        print(f"[!] Training supervised by model : {TEACHER}")
+        load_checkpoint(torch.load(TEACHER), model)
 
     # BCE: Binary CrossEntropy, WithLogits: ADD sigmoid in the models
     # If the out_channels are 3 or more, use CrossEntropy loss
@@ -168,7 +174,7 @@ def main():
 
     # Train =========================================================================================================
     for epoch in range(NUM_EPOCHS):
-        train_fn(train_loader, model, optimizer, loss_fn, scaler, epoch)
+        train_fn(train_loader, model, optimizer, loss_fn, scaler, epoch, teacher)
 
         # check accuracy
         acc, dice = check_accuracy_binary(val_loader, model, device=DEVICE)

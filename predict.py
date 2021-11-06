@@ -38,12 +38,7 @@ def main():
     # model = Unet(in_channels=3, out_channels=1).to(DEVICE)
     model = SegFormerNet(1, [IMAGE_HEIGHT, IMAGE_WIDTH]).to(DEVICE)
     model = nn.DataParallel(model)
-    partial = torch.load('mit_b5.pth')
-    state = model.state_dict()
-    pretrained_dict = {k: v for k, v in partial.items() if k in state}
-    state.update(pretrained_dict)
-    model.load_state_dict(state)
-    print(r"[!] In Predict: Load pretrained [mit_b5] complete.")
+    load_pretrain_predict(r'mit_b5.pth', model)
 
     test_loader = get_loaders(TEST_IMG_DIR, BATCH_SIZE, test_transform, BATCH_SIZE, predict=True, num_workers=NUM_WORKS, pin_memory=PIN_MEMORY)
     load_checkpoint(torch.load("Medical_checkpoint.pth"), model)

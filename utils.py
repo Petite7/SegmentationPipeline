@@ -29,6 +29,32 @@ def load_checkpoint(checkpoint, model, optimizer=None, scheduler=None):
         scheduler.load_state_dict(checkpoint["scheduler"])
 
 
+def load_pretrain_train(pretrained, model):
+    partial = torch.load(pretrained)
+    state = model.state_dict()
+    # 1. filter out unnecessary keys
+    # pretrained_dict = {k: v for k, v in partial.items() if k in state}
+    pretrained_dict = {'module.backbone.' + k: v for k, v in partial.items() if 'module.backbone.' + k in state}
+    # 2. overwrite entries in the existing state dict
+    state.update(pretrained_dict)
+    # 3. load the new state dict
+    model.load_state_dict(state)
+    print(r"[!] Load pretrained : [mit_b5] complete.")
+
+
+def load_pretrain_predict(pretrained, model):
+    partial = torch.load(pretrained)
+    state = model.state_dict()
+    # 1. filter out unnecessary keys
+    pretrained_dict = {k: v for k, v in partial.items() if k in state}
+    # pretrained_dict = {'module.backbone.' + k: v for k, v in partial.items() if 'module.backbone.' + k in state}
+    # 2. overwrite entries in the existing state dict
+    state.update(pretrained_dict)
+    # 3. load the new state dict
+    model.load_state_dict(state)
+    print(r"[!] Load pretrained : [mit_b5] complete.")
+
+
 def save_max_score(path, acc, dice):
     ma, md = load_max_score(path)
     ma = ma if (ma > acc) else acc
