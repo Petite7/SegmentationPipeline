@@ -62,7 +62,7 @@ def train_fn(loader, model, optimizer, loss_fn, scaler, epoch, from_model=None):
             predictions = model(data)
             loss = loss_fn(predictions, targets)
             if from_model is not None:
-                loss += loss_fn(predictions, from_model(data))
+                loss = 0.7*loss + 0.3*loss_fn(predictions, torch.sigmoid(from_model(data)))
 
         # backward
         optimizer.zero_grad()
@@ -120,7 +120,7 @@ def main():
         teacher = nn.DataParallel(teacher)
         load_pretrain_predict(r'mit_b5.pth', teacher)
         print(f"[!] Training supervised by model : {TEACHER}")
-        load_checkpoint(torch.load(TEACHER), model)
+        load_checkpoint(torch.load(TEACHER), teacher)
 
     # BCE: Binary CrossEntropy, WithLogits: ADD sigmoid in the models
     # If the out_channels are 3 or more, use CrossEntropy loss
@@ -169,6 +169,8 @@ def main():
     if RETRAIN:
         ma, md = load_max_score(r"max_score.csv")
         print(f"> Last train best score : acc = {ma}, dice = {md}")
+    elif os.path.isfile(r"max_score.csv") is True:
+        os.system(r'mv max_score.csv last_train_score.csv')
     max_acc = float(ma) if RETRAIN else 0
     max_dice = float(md) - penalty if RETRAIN else 0
 

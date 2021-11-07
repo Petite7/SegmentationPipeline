@@ -19,6 +19,7 @@ PIN_MEMORY = True
 LOAD_MODEL = True
 TEST_IMG_DIR = "PTest"
 PRED_IMG_DIR = "predict"
+CHECKPOINT = r"Medical_checkpoint.pth"
 # ----------------------------------------------------------------------------------
 
 
@@ -41,7 +42,7 @@ def main():
     load_pretrain_predict(r'mit_b5.pth', model)
 
     test_loader = get_loaders(TEST_IMG_DIR, BATCH_SIZE, test_transform, BATCH_SIZE, predict=True, num_workers=NUM_WORKS, pin_memory=PIN_MEMORY)
-    load_checkpoint(torch.load("Medical_checkpoint.pth"), model)
+    load_checkpoint(torch.load(CHECKPOINT), model)
 
     predicted_as_images(test_loader, model, folder="predict/", ttach=True, device=DEVICE)
     crop_to_shape(r'predict', r'RecoverPredict', file_path=r'original_test_wh.csv')
